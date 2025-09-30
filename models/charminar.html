@@ -98,21 +98,22 @@
       setTimeout(()=>{ document.querySelectorAll('model-viewer .hotspot').forEach(h => h.style.display = ''); }, 2000);
     };
     // --- Storytelling Feature ---
-    // Load hotspots and storytelling data from JSON
     const HOTSPOT_JSON_URL = 'https://kcpcvsfumkeinsxfkfru.supabase.co/storage/v1/object/public/Charminar/charminar_data.json';
     let hotspotData = null;
     let currentAudio = null;
     let selectedHotspot = null;
+    let currentSlideIdx = 0;
+    let currentSlides = null;
     // Hotspot 3D positions for Charminar
     const hotspotPositions = {
-      'charminar_story': { position: '0 10 0', normal: '0 1 0' }, // Center above courtyard
-      'central_arch': { position: '0 5 7', normal: '0 0 -1' }, // South arch (main approach)
-      'four_minarets_1': { position: '5 0 5', normal: '1 0 0' }, // NE minaret base
-      'four_minarets_2': { position: '-5 0 5', normal: '-1 0 0' }, // NW minaret base
-      'four_minarets_3': { position: '5 0 -5', normal: '1 0 0' }, // SE minaret base
-      'four_minarets_4': { position: '-5 0 -5', normal: '-1 0 0' }, // SW minaret base
-      'why_famous': { position: '0 13 0', normal: '0 1 0' }, // Top center
-      'secret_tunnel': { position: '0 -2 -7', normal: '0 -1 0' } // North base underground
+      'charminar_story': { position: '0 10 0', normal: '0 1 0' },
+      'central_arch': { position: '0 5 7', normal: '0 0 -1' },
+      'four_minarets_1': { position: '5 0 5', normal: '1 0 0' },
+      'four_minarets_2': { position: '-5 0 5', normal: '-1 0 0' },
+      'four_minarets_3': { position: '5 0 -5', normal: '1 0 0' },
+      'four_minarets_4': { position: '-5 0 -5', normal: '-1 0 0' },
+      'why_famous': { position: '0 13 0', normal: '0 1 0' },
+      'secret_tunnel': { position: '0 -2 -7', normal: '0 -1 0' }
     };
     async function setupModelAndHotspots() {
       const res = await fetch(HOTSPOT_JSON_URL);
@@ -122,7 +123,6 @@
       viewer.setAttribute('src', GLB_URL);
       // Place hotspots
       hotspotData.forEach(h => {
-        // For four_minarets, create four hotspots
         if (h.id === 'four_minarets') {
           for (let i = 1; i <= 4; i++) {
             const btn = document.createElement('button');
@@ -136,7 +136,7 @@
               btn.setAttribute('data-normal', pos.normal);
             }
             btn.onclick = () => onHotspotClick(h.id, i);
-            btn.style.opacity = '0.35';
+            btn.style.opacity = '1';
             viewer.appendChild(btn);
           }
         } else {
@@ -151,7 +151,7 @@
             btn.setAttribute('data-normal', pos.normal);
           }
           btn.onclick = () => onHotspotClick(h.id);
-          btn.style.opacity = '0.35';
+          btn.style.opacity = '1';
           viewer.appendChild(btn);
         }
       });
@@ -202,35 +202,71 @@
     function onHotspotClick(hotspotId, minaretNum) {
       highlightHotspot(minaretNum ? hotspotId + '_' + minaretNum : hotspotId);
       let h = null;
+      currentSlideIdx = 0;
+      currentSlides = null;
       if (minaretNum) {
         h = hotspotData.find(hh => hh.id === 'four_minarets');
         if (h && h.slides && h.slides[minaretNum - 1]) {
-          showBanner(h.title, h.slides[minaretNum - 1].fact, h.slides[minaretNum - 1].image, h.slides[minaretNum - 1].audio);
+          currentSlides = h.slides;
+          showBanner(h.title + ' ' + minaretNum, h.slides[minaretNum - 1], minaretNum - 1, h.slides.length);
         }
       } else {
         h = hotspotData.find(hh => hh.id === hotspotId);
         if (!h) return;
         if (h.slides) {
-          showBanner(h.title, h.slides[0].fact, h.slides[0].image, h.slides[0].audio);
+          currentSlides = h.slides;
+          showBanner(h.title, h.slides[0], 0, h.slides.length);
         } else {
-          showBanner(h.title, h.fact, h.image, h.audio);
+          showBanner(h.title, h, 0, 1);
         }
       }
     }
     // Banner UI logic
-    function showBanner(title, fact, image, audioObj) {
+    function showBanner(title, slide, idx, totalSlides) {
       document.getElementById('bannerTitle').textContent = title;
-      document.getElementById('bannerFact').textContent = fact;
+      document.getElementById('bannerFact').textContent = slide.fact;
       const thumb = document.getElementById('bannerThumb');
-      thumb.src = image || '';
+      thumb.src = slide.image || '';
       thumb.alt = title + ' thumbnail';
-      document.getElementById('bannerSubtitles').textContent = '';
+      document.getElementById('bannerSubtitles').textContent = slide.subtitles || '';
       document.getElementById('storyBanner').style.display = 'block';
       setTimeout(()=>{ document.getElementById('storyBanner').style.transform = 'translateY(0)'; }, 10);
+      // Slide navigation
+      let nav = document.getElementById('bannerNav');
+      if (!nav) {
+        nav = document.createElement('div');
+        nav.id = 'bannerNav';
+        nav.style = 'display:flex;justify-content:center;align-items:center;margin:8px 0;';
+        document.querySelector('.banner-info').appendChild(nav);
+      }
+      nav.innerHTML = '';
+      if (totalSlides > 1) {
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = '⟨';
+        prevBtn.style.marginRight = '8px';
+        prevBtn.disabled = idx === 0;
+        prevBtn.onclick = () => {
+          currentSlideIdx = idx - 1;
+          showBanner(title, currentSlides[currentSlideIdx], currentSlideIdx, totalSlides);
+        };
+        nav.appendChild(prevBtn);
+        const slideInfo = document.createElement('span');
+        slideInfo.textContent = `Slide ${idx + 1} of ${totalSlides}`;
+        nav.appendChild(slideInfo);
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = '⟩';
+        nextBtn.style.marginLeft = '8px';
+        nextBtn.disabled = idx === totalSlides - 1;
+        nextBtn.onclick = () => {
+          currentSlideIdx = idx + 1;
+          showBanner(title, currentSlides[currentSlideIdx], currentSlideIdx, totalSlides);
+        };
+        nav.appendChild(nextBtn);
+      }
       // Audio controls (English only for now)
-      if (audioObj && audioObj.en) {
+      if (slide.audio && slide.audio.en) {
         if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-        const audio = new Audio(audioObj.en);
+        const audio = new Audio(slide.audio.en);
         audio.preload = 'auto';
         audio.volume = 1;
         currentAudio = audio;
@@ -252,7 +288,7 @@
       }
       // Fullscreen thumbnail
       thumb.onclick = () => {
-        document.getElementById('thumbModalImg').src = image || '';
+        document.getElementById('thumbModalImg').src = slide.image || '';
         document.getElementById('thumbModal').style.display = 'flex';
       };
     }
@@ -262,6 +298,8 @@
       setTimeout(()=>{ document.getElementById('storyBanner').style.display = 'none'; }, 200);
       if (currentAudio) { currentAudio.pause(); currentAudio = null; }
       highlightHotspot(null);
+      currentSlideIdx = 0;
+      currentSlides = null;
     };
     // Fullscreen modal exit
     document.getElementById('thumbModalClose').onclick = () => { document.getElementById('thumbModal').style.display = 'none'; };
